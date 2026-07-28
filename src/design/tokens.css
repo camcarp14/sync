@@ -1,0 +1,170 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SYNC — design tokens. Two rooms, one architecture:
+   OBSIDIAN (true black, the default — a console you talk to at 6am and 11pm)
+   and QUARTZ (cool paper, for the hours you want the room bright).
+   Every colour in the app resolves through these variables. There are no
+   ad-hoc rgba() values anywhere in this codebase; use the ladders below.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Inter — the house typeface. Self-hosted (rsms/inter v20, SIL OFL, see
+   public/fonts/Inter-LICENSE.txt) so it ships from our own origin and is
+   preloaded in index.html for a flash-free first paint. One variable file
+   carries every weight. The system stack stays as the fallback so a cold
+   cache renders in SF/Segoe, never in serif. */
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(/fonts/inter-var-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: "Inter Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(/fonts/inter-var-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+}
+
+:root {
+  /* motion — the only physics in the building. Every transition and every
+     animation in this app uses one of these four durations and one of these
+     three curves. No exceptions, no one-off timings. */
+  --dur-1: 140ms;   /* acknowledgement: press, hover, tint */
+  --dur-2: 240ms;   /* state: toggle, thumb, chevron */
+  --dur-3: 420ms;   /* arrival: page, sheet, stagger */
+  --dur-4: 700ms;   /* atmosphere: boot, orb settle */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.44, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* type — Inter for everything readable, a true monospace only where digits
+     must column up (clocks, durations, token counts). */
+  --font-body: "Inter Variable", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  /* shape */
+  --r-card: 18px;
+  --r-well: 12px;
+  --r-ctl: 10px;
+}
+
+/* ── OBSIDIAN — true black, elevated graphite, signal blue ────────────────── */
+:root, [data-theme="night"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --surface: #131417;
+  --surface-2: #1D1F24;
+  --ink: #ECEEF2;
+  --sub: #9DA3AE;
+  --faint: #676C77;
+  --line: rgba(236, 238, 242, 0.09);
+  --line-strong: rgba(236, 238, 242, 0.18);
+
+  --accent: #6AA8FF;
+  --accent-hi: #93C1FF;
+  --accent-deep: #3D7FDB;
+  --on-accent: #04101F;
+
+  --green: #35C08A;
+  --red: #F2615A;
+  --amber: #E0A030;
+  --blue: #6AA8FF;
+  --purple: #A98BF5;
+  --pink: #EE6FA8;
+
+  --seg-bg: rgba(236, 238, 242, 0.07);
+  --seg-thumb: #2C2F36;
+  --scrim: rgba(0, 0, 0, 0.62);
+  --glass: rgba(10, 11, 13, 0.78);
+  --glass-raised: rgba(24, 26, 30, 0.92);
+
+  --shadow-card: 0 1px 1px rgba(0, 0, 0, 0.32), 0 6px 24px rgba(0, 0, 0, 0.38);
+  --shadow-float: 0 12px 40px rgba(0, 0, 0, 0.58);
+  --shadow-deep: 0 24px 70px rgba(0, 0, 0, 0.72);
+
+  /* the orb's living gradient — three stops, cool, never neon */
+  --orb-1: #6AA8FF;
+  --orb-2: #A98BF5;
+  --orb-3: #35C08A;
+}
+
+/* ── QUARTZ — cool paper, borderless white cards, deep signal blue ────────── */
+[data-theme="day"] {
+  color-scheme: light;
+  --bg: #F1F3F6;
+  --surface: #FFFFFF;
+  --surface-2: #F5F6F9;
+  --ink: #14161B;
+  --sub: #616671;
+  --faint: #979CA6;
+  --line: rgba(20, 22, 27, 0.08);
+  --line-strong: rgba(20, 22, 27, 0.16);
+
+  --accent: #2557D6;
+  --accent-hi: #3C6DE8;
+  --accent-deep: #1B429F;
+  --on-accent: #FFFFFF;
+
+  --green: #12855C;
+  --red: #C6362F;
+  --amber: #9A6410;
+  --blue: #2557D6;
+  --purple: #6A44C8;
+  --pink: #C13B77;
+
+  --seg-bg: rgba(20, 22, 27, 0.055);
+  --seg-thumb: #FFFFFF;
+  --scrim: rgba(14, 16, 20, 0.42);
+  --glass: rgba(241, 243, 246, 0.84);
+  --glass-raised: rgba(255, 255, 255, 0.9);
+
+  --shadow-card: 0 1px 1px rgba(16, 20, 28, 0.03), 0 6px 24px rgba(16, 20, 28, 0.06);
+  --shadow-float: 0 12px 40px rgba(16, 20, 28, 0.16);
+  --shadow-deep: 0 24px 70px rgba(16, 20, 28, 0.24);
+
+  --orb-1: #2557D6;
+  --orb-2: #6A44C8;
+  --orb-3: #12855C;
+}
+
+/* ── derived ladders — one definition serves both rooms ──────────────────────
+   Use the ladder, never ad-hoc rgba. color-mix is a hard dependency of this
+   codebase and is supported everywhere this app is meant to run. */
+:root, [data-theme="night"], [data-theme="day"] {
+  --ink-a02: color-mix(in srgb, var(--ink) 2%, transparent);
+  --ink-a03: color-mix(in srgb, var(--ink) 3%, transparent);
+  --ink-a04: color-mix(in srgb, var(--ink) 4%, transparent);
+  --ink-a05: color-mix(in srgb, var(--ink) 5%, transparent);
+  --ink-a06: color-mix(in srgb, var(--ink) 6%, transparent);
+  --ink-a08: color-mix(in srgb, var(--ink) 8%, transparent);
+  --ink-a10: color-mix(in srgb, var(--ink) 10%, transparent);
+  --ink-a12: color-mix(in srgb, var(--ink) 12%, transparent);
+  --ink-a16: color-mix(in srgb, var(--ink) 16%, transparent);
+  --ink-a20: color-mix(in srgb, var(--ink) 20%, transparent);
+  --ink-a25: color-mix(in srgb, var(--ink) 25%, transparent);
+
+  --accent-a06: color-mix(in srgb, var(--accent) 6%, transparent);
+  --accent-a08: color-mix(in srgb, var(--accent) 8%, transparent);
+  --accent-a10: color-mix(in srgb, var(--accent) 10%, transparent);
+  --accent-a12: color-mix(in srgb, var(--accent) 12%, transparent);
+  --accent-a16: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-a20: color-mix(in srgb, var(--accent) 20%, transparent);
+  --accent-a25: color-mix(in srgb, var(--accent) 25%, transparent);
+  --accent-a32: color-mix(in srgb, var(--accent) 32%, transparent);
+  --accent-a40: color-mix(in srgb, var(--accent) 40%, transparent);
+  --accent-a55: color-mix(in srgb, var(--accent) 55%, transparent);
+
+  --green-a10: color-mix(in srgb, var(--green) 10%, transparent);
+  --green-a14: color-mix(in srgb, var(--green) 14%, transparent);
+  --green-a50: color-mix(in srgb, var(--green) 50%, transparent);
+  --amber-a10: color-mix(in srgb, var(--amber) 10%, transparent);
+  --amber-a14: color-mix(in srgb, var(--amber) 14%, transparent);
+  --red-a10: color-mix(in srgb, var(--red) 10%, transparent);
+  --red-a14: color-mix(in srgb, var(--red) 14%, transparent);
+  --purple-a14: color-mix(in srgb, var(--purple) 14%, transparent);
+
+  --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent-a55);
+}

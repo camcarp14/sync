@@ -1,0 +1,28 @@
+{
+  "name": "sync",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "SYNC — a voice-first operating layer for the workday.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "smoke:time": "node scripts/time-smoke.mjs",
+    "smoke:store": "node scripts/store-smoke.mjs",
+    "smoke:tools": "node scripts/tools-smoke.mjs",
+    "smoke:stream": "node scripts/stream-smoke.mjs",
+    "smoke:speech": "node scripts/speech-smoke.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "icons": "node scripts/make-icons.mjs",
+    "verify": "npm run smoke:time && npm run smoke:store && npm run smoke:tools && npm run smoke:stream && npm run smoke:speech && npm run build"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}
