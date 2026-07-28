@@ -31,7 +31,7 @@ Voice needs a secure context. `localhost` counts; testing from a phone on your L
 
 The build is host-agnostic — `base` is `"./"` and nothing is hardcoded to `/`, so the same `dist/` runs at a domain root, at a project subpath, or off a file share.
 
-**GitHub Pages** is wired up: `.github/workflows/deploy.yml` runs the full check suite on every push to `main` and publishes only if it passes. It needs Pages switched on once — *Settings → Pages → Build and deployment → Source: **GitHub Actions*** — after which every push deploys itself.
+**It's live at [camcarp14.github.io/sync](https://camcarp14.github.io/sync/).** `.github/workflows/deploy.yml` runs the full check suite on every push to `main` and publishes to the `gh-pages` branch only if it passes — no repo settings to configure, no third-party action, and nothing reaches the URL that didn't pass `npm run verify`.
 
 **Netlify** is the better home if you want the serverless proxy, since Pages is static-only. Point it at this repo; `netlify.toml` already sets the SPA redirect, immutable caching for hashed assets, and a `Permissions-Policy` granting the microphone and nothing else.
 

@@ -1,9 +1,13 @@
 name: Verify and deploy
 
-# Every push to main runs the full check suite and, if it passes, publishes.
-# The gate is deliberate: a broken build should never reach the live URL, and
-# `npm run verify` is the same command used locally — 327 checks plus the
-# production build, no CI-only variant to drift out of sync.
+# Every push to main runs the full check suite and, if it passes, publishes the
+# build to the gh-pages branch that GitHub Pages serves.
+#
+# Why a branch push rather than actions/deploy-pages: that path needs the
+# workflow token to create the Pages site the first time, and this repo's token
+# can't ("Resource not accessible by integration"). Pushing a branch needs only
+# `contents: write`, which the token always has — so this deploys itself with
+# no repo settings to configure and no third-party action in the supply chain.
 
 on:
   push:
@@ -11,19 +15,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
-# A newer push supersedes an in-flight one, but a deploy already underway is
-# allowed to finish rather than leaving the site half-published.
+# A newer push supersedes an in-flight one; a publish already underway is left
+# to finish rather than leaving the branch half-written.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  verify:
-    name: Verify
+  deploy:
+    name: Verify and publish
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,33 +37,34 @@ jobs:
 
       - run: npm ci
 
-      # Smoke suites first, then the production build — `verify` runs both, so
-      # a failure here is a failure a developer would have seen locally.
+      # The same command a developer runs: 327 checks, then the production
+      # build. Nothing reaches the live URL that didn't pass it.
       - name: Run the check suite
         run: npm run verify
 
-      # `enablement: true` turns Pages on by itself wherever the workflow token
-      # is allowed to, so a fresh fork deploys without anyone opening settings.
-      # Where it isn't allowed, this step fails with "Resource not accessible
-      # by integration" and Pages has to be switched on once by hand:
-      #   Settings → Pages → Build and deployment → Source: GitHub Actions
-      # After that one click every push deploys, and this step is a no-op.
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
+      - name: Publish to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
+          # .nojekyll stops Jekyll from touching the build. 404.html mirrors
+          # index.html so a deep link lands on the app instead of GitHub's 404
+          # page — the closest Pages gets to an SPA redirect.
+          touch dist/.nojekyll
+          cp dist/index.html dist/404.html
 
-  deploy:
-    name: Deploy
-    needs: verify
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          cd dist
+          git init -q -b gh-pages
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Publish ${GITHUB_SHA:0:7}
+
+          Built output only; source lives on main."
+          # Force-push: this branch is a build artefact, not history worth
+          # keeping. Its log is one commit per deploy.
+          git push -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+
+      - name: Where it went
+        run: echo "Published to https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/" >> "$GITHUB_STEP_SUMMARY"
