@@ -30,7 +30,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci
@@ -40,9 +40,12 @@ jobs:
       - name: Run the check suite
         run: npm run verify
 
-      # Pages is enabled from here rather than by hand in the repo settings, so
-      # a fresh clone of this repo deploys itself without anyone clicking
-      # anything.
+      # `enablement: true` turns Pages on by itself wherever the workflow token
+      # is allowed to, so a fresh fork deploys without anyone opening settings.
+      # Where it isn't allowed, this step fails with "Resource not accessible
+      # by integration" and Pages has to be switched on once by hand:
+      #   Settings → Pages → Build and deployment → Source: GitHub Actions
+      # After that one click every push deploys, and this step is a no-op.
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:

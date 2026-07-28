@@ -29,13 +29,15 @@ Voice needs a secure context. `localhost` counts; testing from a phone on your L
 
 ## Deploy it
 
-Any static host works. Netlify is pre-wired:
+The build is host-agnostic — `base` is `"./"` and nothing is hardcoded to `/`, so the same `dist/` runs at a domain root, at a project subpath, or off a file share.
+
+**GitHub Pages** is wired up: `.github/workflows/deploy.yml` runs the full check suite on every push to `main` and publishes only if it passes. It needs Pages switched on once — *Settings → Pages → Build and deployment → Source: **GitHub Actions*** — after which every push deploys itself.
+
+**Netlify** is the better home if you want the serverless proxy, since Pages is static-only. Point it at this repo; `netlify.toml` already sets the SPA redirect, immutable caching for hashed assets, and a `Permissions-Policy` granting the microphone and nothing else.
 
 ```bash
 npm run build          # → dist/
 ```
-
-`netlify.toml` sets the SPA redirect, immutable caching for fonts and hashed assets, and a `Permissions-Policy` that grants the microphone and nothing else.
 
 **Optionally**, deploy `netlify/functions/claude.js` and set `ANTHROPIC_API_KEY` in the site environment. Then leave the key field in Settings empty and SYNC routes through the proxy instead of holding a key client-side. The function pins the allowed model list and caps `max_tokens` — a proxy that forwards whatever it's handed is a proxy that bills you for whatever it's handed.
 
