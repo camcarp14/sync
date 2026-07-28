@@ -7,6 +7,11 @@ import react from "@vitejs/plugin-react";
 // resolution order. Nothing here needs to know about either.
 export default defineConfig({
   plugins: [react()],
+  // Relative asset URLs, so one build runs anywhere: a domain root on Netlify,
+  // a project subpath on GitHub Pages, or a file:// preview. Everything the
+  // app references either comes through the bundler (fonts, JS, CSS) or is
+  // written relative in index.html — nothing is hardcoded to "/".
+  base: "./",
   server: { host: true, port: 5173 },
   build: {
     target: "es2020",

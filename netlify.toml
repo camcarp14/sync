@@ -18,11 +18,8 @@
   to = "/index.html"
   status = 200
 
-[[headers]]
-  for = "/fonts/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-
+# Everything under /assets is content-hashed by Vite — JS, CSS and the Inter
+# woff2 files alike — so it can be cached forever.
 [[headers]]
   for = "/assets/*"
   [headers.values]
