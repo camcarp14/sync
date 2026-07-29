@@ -74,14 +74,36 @@ export function installViewport() {
 
     const bottom = reportedBottom === 0 && fullBleed ? 34 : reportedBottom;
 
+    // The shortfall between the screen and the layout viewport.
+    //
+    // On an installed iOS app the web view can be given the whole screen while
+    // the *layout viewport* is sized to the safe area — so innerHeight comes
+    // back ~93px short (status bar + home indicator) and nothing positioned
+    // against the viewport, fixed or otherwise, reaches the bottom of the
+    // glass. The frame is not wrong; it is filling a viewport that is smaller
+    // than the screen, and no amount of CSS inside it can reach past that.
+    //
+    // What can reach past it is painting: the web view frame really is full
+    // screen (its background is our page colour, not an OS bar), so an
+    // out-of-flow strip below the tab bar covers the shortfall. If a device is
+    // genuinely letterboxed instead, that strip lands outside the frame and is
+    // simply never seen — so this is safe either way, and it costs no layout
+    // height because it is painted, not laid out.
+    const gap = standalone && screenH > innerH ? Math.round(screenH - innerH) : 0;
+
     root.style.setProperty("--safe-top", `${top}px`);
     root.style.setProperty("--safe-bottom", `${bottom}px`);
+    root.style.setProperty("--frame-gap", `${gap}px`);
+    // What the frame is actually sized to. Equal to innerHeight everywhere the
+    // platform is honest, and to the full screen where iOS hands a full-screen
+    // web view a short layout viewport.
+    root.style.setProperty("--frame-h", `${innerH + gap}px`);
     // The one height the layout trusts. innerHeight is correct the instant it
     // is read, which is more than dvh manages after a keyboard dismissal.
     root.style.setProperty("--app-h", `${innerH}px`);
     root.dataset.standalone = standalone ? "true" : "false";
 
-    last = { standalone, fullBleed, reportedTop, reportedBottom, top, bottom, inferred, innerH, screenH };
+    last = { standalone, fullBleed, reportedTop, reportedBottom, top, bottom, inferred, innerH, screenH, gap };
   };
 
   let last = {};

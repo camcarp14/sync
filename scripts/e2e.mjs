@@ -188,11 +188,14 @@ check("nothing threw", errors.length === 0, errors.join(" | "));
 // neither produced an error: the first was overridden by a `padding` shorthand
 // further down the stylesheet, and nothing in the build or the unit tests can
 // see that. Only measuring the rendered box catches it, so it is measured.
-async function phoneGeometry(installed) {
+async function phoneGeometry(installed, { shortViewport = false } = {}) {
   const c = await browser.newContext({
-    viewport: { width: 393, height: 852 },
-    // screen === viewport reproduces iOS full-bleed standalone, where the app
-    // owns the whole screen and the OS paints the clock on top of it.
+    // shortViewport reproduces the condition that actually broke this app: an
+    // installed iOS web view that owns the whole 852pt screen while reporting
+    // a layout viewport of 759 — the screen less the status bar and the home
+    // indicator. Anything sized to the viewport, `inset: 0` included, then
+    // stops 93px short of the glass.
+    viewport: { width: 393, height: shortViewport ? 759 : 852 },
     screen: { width: 393, height: installed ? 852 : 932 },
     deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: "light",
   });
@@ -224,6 +227,8 @@ async function phoneGeometry(installed) {
       orbTop: top(".orb-canvas"),
       dockBottom: dock ? Math.round(dock.bottom) : null,
       dockAtBottomEdge: !!atBottom?.closest(".dock"),
+      screenH: window.screen.height,
+      dockBottomOnScreen: Math.round(document.querySelector(".dock")?.getBoundingClientRect().bottom ?? -1),
       appAtTopEdge: !!atTop?.closest(".app"),
       streamTop: document.querySelector(".stream")?.scrollTop ?? null,
     };
@@ -240,6 +245,13 @@ check("installed: the orb clears the status bar", inst.orbTop >= 90, String(inst
 check("installed: the frame reaches the top edge", inst.appAtTopEdge, "nothing from .app is painted at y=4");
 check("installed: the tab bar is painted at the bottom edge", inst.dockAtBottomEdge, "the bottom of the screen is not the dock");
 check("installed: the opening card is not scrolled off the top", inst.streamTop === 0, String(inst.streamTop));
+
+// The regression that took four attempts to land: a full-screen web view with
+// a short layout viewport. This assertion fails on every build before it.
+const short = await phoneGeometry(true, { shortViewport: true });
+check("short layout viewport: the frame is sized to the screen", short.dockBottomOnScreen === short.screenH,
+  `dock bottom ${short.dockBottomOnScreen} vs screen ${short.screenH}`);
+check("short layout viewport: the shortfall is detected", short.innerH < short.screenH, `${short.innerH} vs ${short.screenH}`);
 
 const tab = await phoneGeometry(false);
 check("browser tab: no inset is invented", tab.safeTop === 0, String(tab.safeTop));

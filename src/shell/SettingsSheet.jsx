@@ -273,7 +273,10 @@ export default function SettingsSheet({ onClose }) {
               className="t-mono"
               style={{ fontSize: 11.5, lineHeight: 1.7, color: "var(--sub)", background: "var(--surface-2)", padding: "12px 14px", borderRadius: 12, userSelect: "text" }}
             >
-              <div>window {vp.innerH}px · screen {vp.screenH}px</div>
+              <div>
+                window {vp.innerH}px · screen {vp.screenH}px
+                {vp.gap ? ` · frame extended ${vp.gap}px` : ""}
+              </div>
               <div>
                 inset top {vp.reportedTop}px{vp.inferred ? ` → using ${vp.top}px` : ""} · bottom {vp.reportedBottom}px
                 {vp.bottom !== vp.reportedBottom ? ` → ${vp.bottom}px` : ""}
