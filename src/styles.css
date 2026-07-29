@@ -5,7 +5,7 @@
 * { box-sizing: border-box; }
 /* Deliberately no height on this chain — see .app below. Percentage heights
    here inherit iOS's wrong idea of the screen and hand it to everything. */
-html, body, #root { height: auto; }
+html, body, #root { height: 100%; }
 body {
   margin: 0;
   background: var(--bg);
@@ -33,29 +33,16 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 /* ── app frame ──────────────────────────────────────────────────────────────
-   Fixed and pinned to all four edges, rather than a chain of percentage
-   heights or a viewport unit.
-
-   Every other approach depends on the browser agreeing with itself about how
-   tall the screen is, and on an installed iOS app it does not: `height: 100%`
-   resolves against an initial containing block sized to the *small* viewport
-   (screen minus status bar minus home indicator), `100dvh` goes stale after a
-   keyboard dismissal, and innerHeight can report either. All three produced a
-   tab bar floating short of the bottom of the screen.
-
-   Fixed positioning resolves against the layout viewport directly, so none of
-   that arithmetic is in play.
-
-   One correction on top of that: the layout viewport is not always the screen.
-   On an installed iOS app it can be ~93px shorter
-   than the web view it lives in — status bar plus home indicator — which is
-   why a frame pinned to all four edges still left the tab bar short of the
-   glass. The web view itself is full screen there (content draws under the
-   status bar, which only happens in full-bleed), so the frame is given the
-   screen's height instead. --frame-h equals innerHeight wherever the platform
-   is honest, so this is a no-op on every other surface. */
-.app { position: fixed; top: 0; left: 0; right: 0; height: var(--frame-h, 100dvh); display: flex; }
+   The frame's height is set inline from visualViewport (see shell/viewport.js
+   and App.jsx) because it is a measurement, not a style. Nothing here may
+   reintroduce a height: every viewport unit and percentage chain reports the
+   full screen while an iOS standalone window clips below vvh. */
+.app { display: flex; }
 .app-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+/* Reserves the status-bar zone as a flex child rather than padding — see the
+   note in App.jsx. */
+.notch-cap { flex: none; height: env(safe-area-inset-top); background: var(--bg); }
+.app-page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 @media (max-width: 760px) { .app { flex-direction: column; } }
 
 /* the document-level scrollbar treatment, applied to every scroll region */

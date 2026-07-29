@@ -221,13 +221,22 @@ async function phoneGeometry(installed, { shortViewport = false } = {}) {
     const atBottom = document.elementFromPoint(Math.round(window.innerWidth / 2), window.innerHeight - 6);
     const atTop = document.elementFromPoint(Math.round(window.innerWidth / 2), 4);
     return {
-      safeTop: parseFloat(cs.getPropertyValue("--safe-top")) || 0,
+      capH: Math.round(document.querySelector(".notch-cap")?.getBoundingClientRect().height ?? -1),
+      envTop: (() => {
+        const el = document.createElement("div");
+        el.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:env(safe-area-inset-top);";
+        document.body.appendChild(el);
+        const h = Math.round(el.getBoundingClientRect().height);
+        el.remove();
+        return h;
+      })(),
       innerH: window.innerHeight,
       barTop: top(".console-bar"),
       orbTop: top(".orb-canvas"),
       dockBottom: dock ? Math.round(dock.bottom) : null,
       dockAtBottomEdge: !!atBottom?.closest(".dock"),
       screenH: window.screen.height,
+      vvh: window.visualViewport ? Math.round(window.visualViewport.height) : null,
       dockBottomOnScreen: Math.round(document.querySelector(".dock")?.getBoundingClientRect().bottom ?? -1),
       appAtTopEdge: !!atTop?.closest(".app"),
       streamTop: document.querySelector(".stream")?.scrollTop ?? null,
@@ -239,22 +248,34 @@ async function phoneGeometry(installed, { shortViewport = false } = {}) {
 }
 
 const inst = await phoneGeometry(true);
-check("installed: a zero inset is replaced with a real one", inst.safeTop >= 44, String(inst.safeTop));
-check("installed: the toggle row clears the status bar", inst.barTop >= 44, String(inst.barTop));
-check("installed: the orb clears the status bar", inst.orbTop >= 90, String(inst.orbTop));
+// The status-bar zone is reserved by an element, not by padding on a rule that
+// a later shorthand can silently reset — which is how two earlier fixes died.
+// Headless Chromium reports a zero inset, so what is asserted is the invariant
+// that holds at any inset: the reservation equals what the platform reports,
+// and the content starts after it.
+check("installed: the status-bar zone is reserved by an element", inst.capH >= 0, "no .notch-cap");
+check("installed: the reservation matches the reported inset", inst.capH === inst.envTop, `cap ${inst.capH} vs inset ${inst.envTop}`);
+check("installed: the toggle row starts below the reservation", inst.barTop >= inst.capH, `${inst.barTop} vs ${inst.capH}`);
 check("installed: the frame reaches the top edge", inst.appAtTopEdge, "nothing from .app is painted at y=4");
 check("installed: the tab bar is painted at the bottom edge", inst.dockAtBottomEdge, "the bottom of the screen is not the dock");
+check("installed: the tab bar sits on the renderable bottom", inst.dockBottomOnScreen === inst.vvh, `${inst.dockBottomOnScreen} vs ${inst.vvh}`);
 check("installed: the opening card is not scrolled off the top", inst.streamTop === 0, String(inst.streamTop));
 
 // The regression that took four attempts to land: a full-screen web view with
 // a short layout viewport. This assertion fails on every build before it.
 const short = await phoneGeometry(true, { shortViewport: true });
-check("short layout viewport: the frame is sized to the screen", short.dockBottomOnScreen === short.screenH,
-  `dock bottom ${short.dockBottomOnScreen} vs screen ${short.screenH}`);
-check("short layout viewport: the shortfall is detected", short.innerH < short.screenH, `${short.innerH} vs ${short.screenH}`);
+// The invariant is the RENDERABLE bottom, not the screen. An earlier version of
+// this check asserted screen.height and so enshrined the bug: iOS clips
+// everything below visualViewport, and a frame sized past it pushes the tab bar
+// into the clipped region — which is how "fixed" made the gap bigger, not
+// smaller.
+check("short viewport: the tab bar sits on the renderable bottom", short.dockBottomOnScreen === short.vvh,
+  `dock bottom ${short.dockBottomOnScreen} vs renderable ${short.vvh}`);
+check("short viewport: the frame never exceeds what can be drawn", short.dockBottomOnScreen <= short.vvh,
+  `dock bottom ${short.dockBottomOnScreen} vs renderable ${short.vvh}`);
 
 const tab = await phoneGeometry(false);
-check("browser tab: no inset is invented", tab.safeTop === 0, String(tab.safeTop));
+check("browser tab: nothing is reserved when there is no inset", tab.capH === tab.envTop, `cap ${tab.capH} vs inset ${tab.envTop}`);
 check("browser tab: no dead band above the toggles", tab.barTop <= 14, String(tab.barTop));
 check("browser tab: the tab bar is painted at the bottom edge", tab.dockAtBottomEdge, "the bottom of the screen is not the dock");
 

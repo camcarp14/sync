@@ -12,7 +12,7 @@ import { IcDownload, IcUpload, IcTrash, IcSpeaker } from "../ui/icons.jsx";
 import { MODELS } from "../agent/transport.js";
 import { listVoices, onVoicesReady } from "../voice/speaker.js";
 import { fmt24, parseTime } from "../lib/time.js";
-import { viewportReport } from "./viewport.js";
+import { viewportReport, useVisualViewport } from "./viewport.js";
 
 export default function SettingsSheet({ onClose }) {
   const s = useStore();
@@ -23,7 +23,8 @@ export default function SettingsSheet({ onClose }) {
   const [keyDraft, setKeyDraft] = useState(s.settings.apiKey);
   const [showKey, setShowKey] = useState(false);
   const [hours, setHours] = useState({ start: fmt24(s.profile.workStart), end: fmt24(s.profile.workEnd) });
-  const vp = viewportReport();
+  const { vvh, envTop } = useVisualViewport();
+  const vp = viewportReport(vvh, envTop);
   const fileRef = useRef(null);
 
   useEffect(() => onVoicesReady(setVoices), []);
@@ -273,20 +274,14 @@ export default function SettingsSheet({ onClose }) {
               className="t-mono"
               style={{ fontSize: 11.5, lineHeight: 1.7, color: "var(--sub)", background: "var(--surface-2)", padding: "12px 14px", borderRadius: 12, userSelect: "text" }}
             >
-              <div>
-                window {vp.innerH}px · screen {vp.screenH}px
-                {vp.gap ? ` · frame extended ${vp.gap}px` : ""}
-              </div>
-              <div>
-                inset top {vp.reportedTop}px{vp.inferred ? ` → using ${vp.top}px` : ""} · bottom {vp.reportedBottom}px
-                {vp.bottom !== vp.reportedBottom ? ` → ${vp.bottom}px` : ""}
-              </div>
-              <div>standalone {String(!!vp.standalone)} · full-bleed {String(!!vp.fullBleed)}</div>
+              <div>renderable {vp.vvh ?? "—"}px · window {vp.innerH}px · screen {vp.screenH}px</div>
+              <div>inset top {vp.envTop}px</div>
+              <div>standalone {String(!!vp.standalone)} · letterboxed {String(!!vp.letterboxed)}</div>
             </div>
             <div className="t-foot" style={{ marginTop: 8 }}>
-              iOS under-reports its safe areas when an app is installed to the home screen, so SYNC measures them
-              rather than trusting them. If anything sits under your status bar or short of the bottom, these are the
-              numbers that explain why.
+              "Renderable" is visualViewport — the only height an installed iOS window can actually draw into. The
+              frame is sized to it. If anything sits under the status bar or short of the bottom, these are the numbers
+              that explain why.
             </div>
           </section>
 

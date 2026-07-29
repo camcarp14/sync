@@ -15,6 +15,7 @@ import QueuePage from "./pages/QueuePage.jsx";
 import BriefPage from "./pages/BriefPage.jsx";
 import MemoryPage from "./pages/MemoryPage.jsx";
 import { getState } from "./data/store.js";
+import { useVisualViewport, isLetterboxed } from "./shell/viewport.js";
 
 const PAGES = {
   console: ConsolePage,
@@ -42,6 +43,16 @@ function Workspace() {
   const voice = useVoice();
   const phone = useIsPhone();
   const holding = useRef(false);
+  const { vvh, envTop } = useVisualViewport();
+
+  // visualViewport is the only height this window can actually render — see
+  // shell/viewport.js. Everything else (100dvh, innerHeight, screen.height)
+  // reports the full screen while iOS clips below vvh.
+  const frameHeight = vvh == null ? "100%" : `${vvh}px`;
+  const letterboxed = isLetterboxed(vvh, envTop);
+  // When the keyboard takes most of the window, hide the tab bar rather than
+  // let it hover mid-screen.
+  const keyboardOpen = vvh != null && window.screen?.height ? vvh < window.screen.height * 0.72 : false;
 
   const Page = PAGES[page] || ConsolePage;
 
@@ -90,16 +101,31 @@ function Workspace() {
   }, [voice, palette, settings]);
 
   return (
-    <div className="app">
+    // Height comes from visualViewport, inline, because it is a measurement
+    // rather than a style. Fixed and top-anchored: the window is the frame.
+    <div
+      className={`app${letterboxed ? " lbx" : ""}`}
+      style={{ position: "fixed", top: 0, left: 0, right: 0, height: frameHeight, overflow: "hidden" }}
+    >
       {!phone && <Sidebar page={page} setPage={setPage} onSettings={() => setSettingsOpen(true)} onPalette={() => setPalette(true)} />}
 
       <main className="app-main">
+        {/* Notch reservation only — a real element, not padding on something
+            else. Padding gets clobbered by a later shorthand; a flex child
+            cannot be. */}
+        {phone && <div className="notch-cap" />}
+
         {/* Keying on `page` restarts the entrance animation, so a destination
             develops instead of snapping into place. */}
-        <div key={page} className="app-main" style={{ height: "auto", flex: 1, minHeight: 0 }}>
+        <div key={page} className="app-page">
           <Page />
         </div>
-        {phone && <Dock page={page} setPage={setPage} />}
+
+        {/* The tab bar — last flex child, IN FLOW. Every positioned approach
+            (dvh, fixed-inset, frame-height arithmetic) got lied to by some iOS
+            standalone coordinate system; normal flow at the bottom of the flex
+            column cannot be. */}
+        {phone && !keyboardOpen && <Dock page={page} setPage={setPage} />}
       </main>
 
       <CommandK

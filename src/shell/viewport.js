@@ -1,138 +1,84 @@
-// ─── The viewport, measured rather than assumed ──────────────────────────────
-// iOS reports its own geometry badly in exactly the configuration this app is
-// built for — installed to the home screen, drawing under the status bar. Two
-// specific lies, both of which shipped a broken layout before this file
-// existed:
+// ─── The only height this window can actually render ─────────────────────────
+// This is Board Room's geometry, adopted verbatim after five attempts at
+// inventing my own failed on the same device. Every line below is field-proven
+// there; treat the comments as load-bearing.
 //
-//   1. `env(safe-area-inset-top)` returns 0 while the OS is very much drawing
-//      the app under the clock, so anything relying on it sits underneath the
-//      status bar.
-//   2. `100dvh` goes stale after the keyboard opens and closes, leaving the
-//      tab bar floating short of the bottom of the screen.
+// The rule that matters: `visualViewport.height` is the ONLY height an iOS
+// standalone window can render. 100vh, 100lvh, 100dvh and screen.height all
+// report the full screen, but the window CLIPS everything below vvh — content
+// sized past it is cut, never shown. Sizing the frame to screen.height (which
+// I tried) therefore makes the problem worse, not better: the tab bar gets
+// pushed into the clipped region and the visible gap grows.
 //
-// `@media (display-mode: standalone)` is not a reliable escape hatch either —
-// iOS Safari has its own `navigator.standalone` flag and doesn't always match
-// the standard query.
-//
-// So nothing here is assumed. A hidden probe element is asked what the insets
-// actually resolve to, the result is sanity-checked against the screen, and the
-// answers are published as CSS variables that the stylesheet uses instead of
-// env() and dvh. If the platform tells the truth, the truth is what gets used.
+// innerHeight is not a substitute either. vvh is the measurement that tracks
+// the keyboard, the letterbox and the status bar together.
 
-const PROBE_STYLE = [
-  "position:fixed", "top:0", "left:0", "width:0", "height:0",
-  "visibility:hidden", "pointer-events:none",
-  "padding-top:env(safe-area-inset-top,0px)",
-  "padding-bottom:env(safe-area-inset-bottom,0px)",
-].join(";");
+import { useState, useEffect } from "react";
 
-/** True when the app is running without browser chrome. */
-export function isStandalone() {
-  if (typeof window === "undefined") return false;
-  return (
-    window.navigator.standalone === true ||                       // iOS Safari
-    window.matchMedia?.("(display-mode: standalone)").matches ||  // the standard
-    window.matchMedia?.("(display-mode: fullscreen)").matches ||
-    window.matchMedia?.("(display-mode: minimal-ui)").matches
-  );
+export const IS_STANDALONE =
+  typeof window !== "undefined" &&
+  (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone === true);
+
+// Measured env(safe-area-inset-top): >0 means the window sits UNDER the status
+// bar (top-anchored). The broken letterboxed window has envTop 59; a healthy
+// below-status-bar window has envTop 0 — the discriminator for whether the
+// reported bottom inset corresponds to paintable space.
+function measureEnvTop() {
+  const el = document.createElement("div");
+  el.style.cssText = "position:fixed;left:-9999px;top:0;width:1px;height:env(safe-area-inset-top);";
+  document.body.appendChild(el);
+  const h = el.getBoundingClientRect().height;
+  el.remove();
+  return Math.round(h);
+}
+
+export function useVisualViewport() {
+  const get = () => ({
+    vvh: typeof window !== "undefined" && window.visualViewport ? Math.round(window.visualViewport.height) : null,
+    envTop: typeof document !== "undefined" && document.body ? measureEnvTop() : 0,
+  });
+  const [vp, setVp] = useState(get);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    let raf = 0;
+    const on = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => setVp(get())); };
+    on();
+    vv.addEventListener("resize", on);
+    vv.addEventListener("scroll", on);
+    window.addEventListener("orientationchange", on);
+    return () => {
+      cancelAnimationFrame(raf);
+      vv.removeEventListener("resize", on);
+      vv.removeEventListener("scroll", on);
+      window.removeEventListener("orientationchange", on);
+    };
+  }, []);
+
+  return vp;
 }
 
 /**
- * Publish --safe-top, --safe-bottom and --app-h on <html>, and keep them
- * current. Returns a teardown, and the last measurement for diagnostics.
+ * A letterboxed standalone window: renderable height falls short of the screen
+ * WHILE the window is top-anchored under the status bar (envTop > 0). There the
+ * OS strip already clears the home indicator, so the reported bottom inset is
+ * dead space and the tab bar must drop it. A healthy below-status-bar window
+ * (envTop 0) keeps the native inset even though vvh < screen.height.
  */
-export function installViewport() {
-  if (typeof document === "undefined") return () => {};
-  const root = document.documentElement;
-
-  const probe = document.createElement("div");
-  probe.setAttribute("aria-hidden", "true");
-  probe.style.cssText = PROBE_STYLE;
-  document.body.appendChild(probe);
-
-  const measure = () => {
-    const cs = getComputedStyle(probe);
-    const reportedTop = parseFloat(cs.paddingTop) || 0;
-    const reportedBottom = parseFloat(cs.paddingBottom) || 0;
-    const standalone = isStandalone();
-
-    const innerH = window.innerHeight || 0;
-    const screenH = window.screen?.height || 0;
-    // When the app fills the screen, whatever the OS paints on top of it —
-    // clock, signal, battery — is painted over our content. That is the only
-    // case where a zero inset is a lie worth overriding.
-    const fullBleed = standalone && screenH > 0 && innerH >= screenH - 4;
-
-    let top = reportedTop;
-    let inferred = false;
-    if (top === 0 && fullBleed) {
-      // 47pt covers every notched and Dynamic Island iPhone; on the older
-      // 20pt status bars it costs a few points of headroom and breaks nothing.
-      top = 47;
-      inferred = true;
-    }
-
-    const bottom = reportedBottom === 0 && fullBleed ? 34 : reportedBottom;
-
-    // The shortfall between the screen and the layout viewport.
-    //
-    // On an installed iOS app the web view can be given the whole screen while
-    // the *layout viewport* is sized to the safe area — so innerHeight comes
-    // back ~93px short (status bar + home indicator) and nothing positioned
-    // against the viewport, fixed or otherwise, reaches the bottom of the
-    // glass. The frame is not wrong; it is filling a viewport that is smaller
-    // than the screen, and no amount of CSS inside it can reach past that.
-    //
-    // What can reach past it is painting: the web view frame really is full
-    // screen (its background is our page colour, not an OS bar), so an
-    // out-of-flow strip below the tab bar covers the shortfall. If a device is
-    // genuinely letterboxed instead, that strip lands outside the frame and is
-    // simply never seen — so this is safe either way, and it costs no layout
-    // height because it is painted, not laid out.
-    const gap = standalone && screenH > innerH ? Math.round(screenH - innerH) : 0;
-
-    root.style.setProperty("--safe-top", `${top}px`);
-    root.style.setProperty("--safe-bottom", `${bottom}px`);
-    root.style.setProperty("--frame-gap", `${gap}px`);
-    // What the frame is actually sized to. Equal to innerHeight everywhere the
-    // platform is honest, and to the full screen where iOS hands a full-screen
-    // web view a short layout viewport.
-    root.style.setProperty("--frame-h", `${innerH + gap}px`);
-    // The one height the layout trusts. innerHeight is correct the instant it
-    // is read, which is more than dvh manages after a keyboard dismissal.
-    root.style.setProperty("--app-h", `${innerH}px`);
-    root.dataset.standalone = standalone ? "true" : "false";
-
-    last = { standalone, fullBleed, reportedTop, reportedBottom, top, bottom, inferred, innerH, screenH, gap };
-  };
-
-  let last = {};
-  measure();
-
-  // A frame later as well: iOS settles its insets after first paint, and the
-  // first read can land before that.
-  requestAnimationFrame(measure);
-  const settle = setTimeout(measure, 350);
-
-  const onResize = () => measure();
-  window.addEventListener("resize", onResize);
-  window.addEventListener("orientationchange", onResize);
-  window.visualViewport?.addEventListener("resize", onResize);
-  // Returning from the app switcher can restore a stale height.
-  document.addEventListener("visibilitychange", onResize);
-
-  installViewport.read = () => last;
-
-  return () => {
-    clearTimeout(settle);
-    window.removeEventListener("resize", onResize);
-    window.removeEventListener("orientationchange", onResize);
-    window.visualViewport?.removeEventListener("resize", onResize);
-    document.removeEventListener("visibilitychange", onResize);
-    probe.remove();
-  };
+export function isLetterboxed(vvh, envTop) {
+  if (!IS_STANDALONE || vvh == null || !window.screen?.height) return false;
+  return window.screen.height - vvh >= 20 && envTop > 0;
 }
 
-/** What the last measurement found — rendered in Settings so a wrong layout
- *  can be diagnosed from a screenshot instead of another round of guessing. */
-export const viewportReport = () => installViewport.read?.() || {};
+/** Rendered in Settings, so a wrong layout arrives with numbers attached. */
+export function viewportReport(vvh, envTop) {
+  return {
+    vvh,
+    envTop,
+    innerH: typeof window !== "undefined" ? window.innerHeight : 0,
+    screenH: typeof window !== "undefined" ? window.screen?.height || 0 : 0,
+    standalone: IS_STANDALONE,
+    letterboxed: isLetterboxed(vvh, envTop),
+  };
+}
