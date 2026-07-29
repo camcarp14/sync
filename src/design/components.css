@@ -311,11 +311,23 @@ kbd {
    past it, list rows read as empty space with a word at each end. */
 .content-max { width: 100%; max-width: 900px; margin: 0 auto; padding: 4px 28px 48px; }
 @media (max-width: 760px) {
-  .content-head { padding: calc(10px + env(safe-area-inset-top)) 16px 8px; }
+  .content-head { padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 8px; }
   .content-max { padding: 4px 16px 32px; }
-  /* The Console has no header to clear the notch, so the stage does it. */
-  .stage { padding-top: calc(14px + env(safe-area-inset-top)); }
+  .stage { padding-top: calc(10px + env(safe-area-inset-top, 0px)); }
   .stream-inner { padding: 0 16px; }
+}
+
+/* Installed to the home screen, iOS draws the app under the status bar
+   (black-translucent + viewport-fit=cover). env(safe-area-inset-top) is
+   supposed to report that, and sometimes reports 0 anyway — which is how the
+   orb ended up sharing a row with the clock and the battery.
+   A floor under the inset costs nothing when the inset is honest and rescues
+   the layout when it isn't. Scoped to standalone so a normal browser tab,
+   where the chrome already does this, gets no dead band. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .stage { padding-top: max(calc(10px + env(safe-area-inset-top, 0px)), 52px); }
+  .content-head { padding-top: max(calc(10px + env(safe-area-inset-top, 0px)), 52px); }
+  .sidebar { padding-top: max(calc(16px + env(safe-area-inset-top, 0px)), 20px); }
 }
 
 /* ═══ SHEETS ═════════════════════════════════════════════════════════════════ */
@@ -429,7 +441,13 @@ kbd {
 .console { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .stage {
   flex: none; display: flex; flex-direction: column; align-items: center; gap: 12px;
-  padding: 16px 20px 8px; position: relative; z-index: 2;
+  padding: 10px 20px 8px; position: relative; z-index: 2;
+}
+/* The Console has no page header, so this row is what clears the top of the
+   screen. It stays in flow so the stage's safe-area padding moves it down. */
+.console-bar {
+  width: 100%; display: flex; justify-content: flex-end; align-items: center; gap: 4px;
+  flex: none; min-height: 38px;
 }
 .utterance {
   min-height: 44px; display: flex; align-items: center; justify-content: center;

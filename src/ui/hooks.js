@@ -54,6 +54,23 @@ export function useNow(intervalMs = 1000) {
   return now;
 }
 
+// ─── useMedia ────────────────────────────────────────────────────────────────
+// A media query as state. Used where a breakpoint has to change a *value* (a
+// canvas needs real pixels, not a CSS rule) rather than just a style.
+export function useMedia(query) {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia(query).matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const on = (e) => setMatches(e.matches);
+    setMatches(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return matches;
+}
+
 // ─── useEvent ────────────────────────────────────────────────────────────────
 // A callback with a stable identity that always sees the latest render's
 // closure. Lets effects register listeners once without stale-closure bugs.

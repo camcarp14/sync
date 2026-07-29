@@ -5,6 +5,7 @@ import { useStore } from "../data/useStore.js";
 import { undo, getState, setSettings } from "../data/store.js";
 import { coldOpen } from "../agent/system.js";
 import { Button, IconButton, Dot, useToast } from "../ui/kit.jsx";
+import { useMedia } from "../ui/hooks.js";
 import {
   IcSend, IcStop, IcMic, IcMicOff, IcSpeaker, IcSpeakerOff, IcCheck,
   IcAlert, IcSparkle,
@@ -102,6 +103,10 @@ export default function ConsolePage() {
   const s = useStore();
   const voice = useVoice();
   const toast = useToast();
+  // A canvas needs real pixels, so the breakpoint has to reach JS. On a phone
+  // the orb was eating a third of the screen before the first line of content.
+  const phone = useMedia("(max-width: 760px)");
+  const orbSize = phone ? 116 : 148;
   const [text, setText] = useState("");
   const streamRef = useRef(null);
   const taRef = useRef(null);
@@ -169,7 +174,10 @@ export default function ConsolePage() {
     <div className="console">
       {/* ── the stage ─────────────────────────────────────────────────── */}
       <div className="stage">
-        <div style={{ position: "absolute", top: 12, right: 20, display: "flex", gap: 4 }}>
+        {/* In flow, not absolutely positioned: on an installed PWA the stage
+            carries the status-bar inset as padding, and anything pinned to its
+            border box would sit underneath the clock. */}
+        <div className="console-bar">
           <IconButton
             label={s.settings.speak ? "Mute SYNC" : "Let SYNC speak"}
             on={s.settings.speak}
@@ -188,7 +196,7 @@ export default function ConsolePage() {
         </div>
 
         <VoiceOrb
-          size={148}
+          size={orbSize}
           state={orbState}
           level={voice.level}
           onClick={voice.busy ? voice.stop : voice.talk}
