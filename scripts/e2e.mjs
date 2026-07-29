@@ -183,6 +183,60 @@ await page.screenshot({ path: join(SHOTS, "e2e-3-error.png") });
 
 check("nothing threw", errors.length === 0, errors.join(" | "));
 
+/* ── phone geometry, including an installed iOS app ────────────────────────── */
+// This block exists because two separate safe-area fixes shipped broken and
+// neither produced an error: the first was overridden by a `padding` shorthand
+// further down the stylesheet, and nothing in the build or the unit tests can
+// see that. Only measuring the rendered box catches it, so it is measured.
+async function phoneGeometry(installed) {
+  const c = await browser.newContext({
+    viewport: { width: 393, height: 852 },
+    // screen === viewport reproduces iOS full-bleed standalone, where the app
+    // owns the whole screen and the OS paints the clock on top of it.
+    screen: { width: 393, height: installed ? 852 : 932 },
+    deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: "light",
+  });
+  const pg = await c.newPage();
+  await pg.addInitScript((inst) => {
+    localStorage.setItem("sync.state.v1", JSON.stringify({
+      v: 1,
+      settings: { theme: "day", apiKey: "", model: "sonnet", speak: true, ambient: false, wakeWord: "sync", rate: 1, pitch: 1, webSearch: true, onboarded: true },
+      profile: { name: "Cameron", role: "", workStart: 480, workEnd: 1080, ventures: [], directives: [] },
+    }));
+    if (inst) Object.defineProperty(navigator, "standalone", { value: true, configurable: true });
+  }, installed);
+  await pg.goto(URL, { waitUntil: "networkidle" });
+  await pg.waitForTimeout(2400);
+  const m = await pg.evaluate(() => {
+    const cs = getComputedStyle(document.documentElement);
+    const top = (sel) => { const b = document.querySelector(sel)?.getBoundingClientRect(); return b ? Math.round(b.top) : null; };
+    const dock = document.querySelector(".dock")?.getBoundingClientRect();
+    return {
+      safeTop: parseFloat(cs.getPropertyValue("--safe-top")) || 0,
+      appH: parseFloat(cs.getPropertyValue("--app-h")) || 0,
+      innerH: window.innerHeight,
+      barTop: top(".console-bar"),
+      orbTop: top(".orb-canvas"),
+      dockBottom: dock ? Math.round(dock.bottom) : null,
+    };
+  });
+  await pg.screenshot({ path: join(SHOTS, installed ? "e2e-4-installed.png" : "e2e-5-tab.png") });
+  await c.close();
+  return m;
+}
+
+const inst = await phoneGeometry(true);
+check("installed: a zero inset is replaced with a real one", inst.safeTop >= 44, String(inst.safeTop));
+check("installed: the toggle row clears the status bar", inst.barTop >= 44, String(inst.barTop));
+check("installed: the orb clears the status bar", inst.orbTop >= 90, String(inst.orbTop));
+check("installed: app height tracks the window", inst.appH === inst.innerH, `${inst.appH} vs ${inst.innerH}`);
+check("installed: the tab bar reaches the bottom", inst.dockBottom === inst.innerH, `${inst.dockBottom} vs ${inst.innerH}`);
+
+const tab = await phoneGeometry(false);
+check("browser tab: no inset is invented", tab.safeTop === 0, String(tab.safeTop));
+check("browser tab: no dead band above the toggles", tab.barTop <= 14, String(tab.barTop));
+check("browser tab: the tab bar reaches the bottom", tab.dockBottom === tab.innerH, `${tab.dockBottom} vs ${tab.innerH}`);
+
 await browser.close();
 shutdown();
 
