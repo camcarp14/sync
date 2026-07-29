@@ -211,13 +211,21 @@ async function phoneGeometry(installed) {
     const cs = getComputedStyle(document.documentElement);
     const top = (sel) => { const b = document.querySelector(sel)?.getBoundingClientRect(); return b ? Math.round(b.top) : null; };
     const dock = document.querySelector(".dock")?.getBoundingClientRect();
+    // What is actually painted at the bottom edge of the screen. A bounding
+    // box is not enough: an element clipped out of view still reports the box
+    // it would have occupied, which is how the first version of this check
+    // passed against a layout that was visibly broken.
+    const atBottom = document.elementFromPoint(Math.round(window.innerWidth / 2), window.innerHeight - 6);
+    const atTop = document.elementFromPoint(Math.round(window.innerWidth / 2), 4);
     return {
       safeTop: parseFloat(cs.getPropertyValue("--safe-top")) || 0,
-      appH: parseFloat(cs.getPropertyValue("--app-h")) || 0,
       innerH: window.innerHeight,
       barTop: top(".console-bar"),
       orbTop: top(".orb-canvas"),
       dockBottom: dock ? Math.round(dock.bottom) : null,
+      dockAtBottomEdge: !!atBottom?.closest(".dock"),
+      appAtTopEdge: !!atTop?.closest(".app"),
+      streamTop: document.querySelector(".stream")?.scrollTop ?? null,
     };
   });
   await pg.screenshot({ path: join(SHOTS, installed ? "e2e-4-installed.png" : "e2e-5-tab.png") });
@@ -229,13 +237,22 @@ const inst = await phoneGeometry(true);
 check("installed: a zero inset is replaced with a real one", inst.safeTop >= 44, String(inst.safeTop));
 check("installed: the toggle row clears the status bar", inst.barTop >= 44, String(inst.barTop));
 check("installed: the orb clears the status bar", inst.orbTop >= 90, String(inst.orbTop));
-check("installed: app height tracks the window", inst.appH === inst.innerH, `${inst.appH} vs ${inst.innerH}`);
-check("installed: the tab bar reaches the bottom", inst.dockBottom === inst.innerH, `${inst.dockBottom} vs ${inst.innerH}`);
+check("installed: the frame reaches the top edge", inst.appAtTopEdge, "nothing from .app is painted at y=4");
+check("installed: the tab bar is painted at the bottom edge", inst.dockAtBottomEdge, "the bottom of the screen is not the dock");
+check("installed: the opening card is not scrolled off the top", inst.streamTop === 0, String(inst.streamTop));
 
 const tab = await phoneGeometry(false);
 check("browser tab: no inset is invented", tab.safeTop === 0, String(tab.safeTop));
 check("browser tab: no dead band above the toggles", tab.barTop <= 14, String(tab.barTop));
-check("browser tab: the tab bar reaches the bottom", tab.dockBottom === tab.innerH, `${tab.dockBottom} vs ${tab.innerH}`);
+check("browser tab: the tab bar is painted at the bottom edge", tab.dockAtBottomEdge, "the bottom of the screen is not the dock");
+
+// NOTE: the iOS bottom-gap this app hit cannot be reproduced here. Chromium's
+// initial containing block is correct, and `overflow:hidden` on body propagates
+// to the viewport so nothing clips — a deliberately-shortened height chain
+// renders identically to a correct one. The fix for it (a fixed frame pinned to
+// all four edges) removes the dependency rather than correcting a value, so
+// there is nothing here that can meaningfully assert it. Said plainly rather
+// than covered by a check that passes either way.
 
 await browser.close();
 shutdown();

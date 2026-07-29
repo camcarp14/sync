@@ -3,7 +3,9 @@
 
 /* ── the ground floor ─────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
-html, body, #root { height: 100%; }
+/* Deliberately no height on this chain — see .app below. Percentage heights
+   here inherit iOS's wrong idea of the screen and hand it to everything. */
+html, body, #root { height: auto; }
 body {
   margin: 0;
   background: var(--bg);
@@ -30,9 +32,22 @@ a { color: var(--accent); text-decoration: none; }
   font-variant-numeric: tabular-nums;
 }
 
-/* app frame */
-.app { display: flex; height: var(--app-h, 100dvh); width: 100%; }
-.app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; height: var(--app-h, 100dvh); }
+/* ── app frame ──────────────────────────────────────────────────────────────
+   Fixed and pinned to all four edges, rather than a chain of percentage
+   heights or a viewport unit.
+
+   Every other approach depends on the browser agreeing with itself about how
+   tall the screen is, and on an installed iOS app it does not: `height: 100%`
+   resolves against an initial containing block sized to the *small* viewport
+   (screen minus status bar minus home indicator), `100dvh` goes stale after a
+   keyboard dismissal, and innerHeight can report either. All three produced a
+   tab bar floating short of the bottom of the screen.
+
+   `position: fixed; inset: 0` resolves against the layout viewport directly.
+   There is no arithmetic to get wrong and no value to measure — the frame is
+   the viewport by construction. */
+.app { position: fixed; inset: 0; display: flex; }
+.app-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 @media (max-width: 760px) { .app { flex-direction: column; } }
 
 /* the document-level scrollbar treatment, applied to every scroll region */

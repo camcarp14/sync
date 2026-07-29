@@ -125,7 +125,10 @@ export default function ConsolePage() {
   };
 
   useLayoutEffect(() => {
-    if (!pinned) return;
+    // Nothing to follow before the first turn — and on a short screen the
+    // opening card is taller than the stream, so scrolling to the "bottom"
+    // of it just guillotines the greeting.
+    if (!pinned || turns.length === 0) return;
     const el = streamRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [turns, pinned, last?.text, last?.acts?.length]);
