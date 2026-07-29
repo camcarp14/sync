@@ -17,6 +17,7 @@ import {
   dayKey, minsOfDay, parseTime, parseDay, fmtTime, fmtDur, dayLabel,
 } from "../lib/time.js";
 import { BLOCK_KINDS, PRIORITIES, PRIORITY_RANK } from "../data/seed.js";
+import { SOURCE_KEYS, sourceCatalogue, sourceMeta } from "./pentagon-sources.js";
 
 const KIND_KEYS = BLOCK_KINDS.map((k) => k.key);
 const PRIORITY_KEYS = PRIORITIES.map((p) => p.key);
@@ -828,6 +829,133 @@ export const TOOLS = {
       return ok(`Updated ${changed.join(", ")}`, JSON.stringify({ changed }));
     },
   },
+
+  /* ── the Pentagon ────────────────────────────────────────────────────── */
+  // Everything above this line is SYNC's own state, held in this browser. These
+  // three reach the shared Supabase project the rest of the businesses run on.
+  // The connector is imported lazily so a signed-out session never pays for it.
+  pentagon_read: {
+    verb: "Reading the Pentagon",
+    readonly: true,
+    description:
+      `Read live data from the Pentagon — the shared database behind the user's real calendar, notes and businesses. This is current data, not SYNC's own state. Read it rather than guessing, and never answer from memory when a source here would know.\n\nSources:\n${sourceCatalogue()}\n\nTwo things worth knowing: "calendar" is the real calendar and is separate from SYNC's day plan, so check both before calling a day clear; and for any "how's business" question start with "pipeline", then drill in.`,
+    input_schema: {
+      type: "object",
+      properties: {
+        source: { type: "string", enum: SOURCE_KEYS, description: "Which source to read." },
+        day: { type: "string", description: 'For "calendar": which day — "today" (default), "tomorrow", or YYYY-MM-DD. For "store": the first day of a range.' },
+        to: { type: "string", description: "End of the range, inclusive. Same formats as day." },
+        limit: { type: "integer", description: "How many rows, 1–200. Default 25." },
+      },
+      required: ["source"],
+    },
+    async run(input) {
+      const { read } = await import("./pentagon.js");
+      const source = String(input.source || "");
+      const day = input.day ? parseDay(input.day, null) || input.day : undefined;
+      const to = input.to ? parseDay(input.to, null) || input.to : undefined;
+      const res = await read(source, { day, to, limit: input.limit });
+      if (!res.ok) return fail(res.error);
+      return ok(res.summary, JSON.stringify(res.data), sourceMeta(source)?.label || source);
+    },
+  },
+
+  pentagon_add_event: {
+    verb: "Adding to the calendar",
+    description:
+      "Put a real event on the user's actual calendar — the shared one their other apps show. Use this when they say to put something in or on the calendar. For shaping the working day inside SYNC use schedule_block instead: that is the plan, this is the calendar.",
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "What the event is." },
+        day: { type: "string", description: '"today", "tomorrow" or YYYY-MM-DD. Defaults to today.' },
+        start: { type: "string", description: 'Start time, "14:00" or "2pm". Omit for an all-day event.' },
+        mins: { type: "integer", description: "How long, in minutes. Default 60." },
+        allDay: { type: "boolean", description: "True for an all-day event." },
+        location: { type: "string" },
+        notes: { type: "string" },
+      },
+      required: ["title"],
+    },
+    async run(input) {
+      const { addEvent } = await import("./pentagon.js");
+      const day = parseDay(input.day, dayKey()) || dayKey();
+      const allDay = !!input.allDay || !input.start;
+      let startISO;
+      let endISO = null;
+      let when;
+
+      if (allDay) {
+        startISO = new Date(`${day}T00:00:00`).toISOString();
+        when = `${dayLabel(day)}, all day`;
+      } else {
+        const start = parseTime(input.start);
+        if (start == null) return fail(`Couldn't read the start time "${input.start}".`, 'Use 24h ("14:00") or 12h ("2pm").');
+        const mins = Math.max(5, Math.min(720, Math.round(Number(input.mins) || 60)));
+        const d = new Date(`${day}T00:00:00`);
+        d.setMinutes(start);
+        startISO = d.toISOString();
+        endISO = new Date(d.getTime() + mins * 60000).toISOString();
+        when = `${dayLabel(day)} at ${fmtTime(start)}`;
+      }
+
+      const res = await addEvent({
+        title: input.title,
+        startISO,
+        endISO,
+        allDay,
+        location: input.location || null,
+        notes: input.notes || "",
+      });
+      if (!res.ok) return fail(res.error);
+
+      // Nothing local changed, so there is no before-image — but the entry still
+      // carries `remote`, and that is what makes Undo delete the row upstream.
+      commit({
+        action: "pentagon_add_event",
+        title: `Calendar · ${String(input.title).trim()}`,
+        detail: when,
+        touches: [],
+        remote: res.remote,
+        apply: () => ({}),
+      });
+      return ok(`On the calendar — ${when}`, JSON.stringify({ id: res.data.id, when }));
+    },
+  },
+
+  pentagon_capture: {
+    verb: "Saving to the Pentagon",
+    description:
+      "Write a note or a grocery item into the shared Pentagon lists, where the user's other apps can see it. Something only SYNC needs should use capture_note instead — this one is for what belongs to the household or the wider system.",
+    input_schema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["note", "grocery"], description: "What to write." },
+        title: { type: "string", description: "For a note: its title." },
+        body: { type: "string", description: "For a note: the body. For a grocery item: the item itself." },
+      },
+      required: ["kind", "body"],
+    },
+    async run(input) {
+      const p = await import("./pentagon.js");
+      const kind = input.kind === "grocery" ? "grocery" : "note";
+      const body = String(input.body || "").trim();
+      const res = kind === "grocery"
+        ? await p.addGrocery(body)
+        : await p.addNote({ title: input.title || "", body });
+      if (!res.ok) return fail(res.error);
+
+      commit({
+        action: "pentagon_capture",
+        title: kind === "grocery" ? `Groceries · ${body}` : `Note · ${String(input.title || body).slice(0, 40)}`,
+        detail: kind === "grocery" ? "Added to the shared list" : "Saved to Board Room notes",
+        touches: [],
+        remote: res.remote,
+        apply: () => ({}),
+      });
+      return ok(kind === "grocery" ? `Added ${body} to the list` : "Note saved", JSON.stringify({ id: res.data.id }));
+    },
+  },
 };
 
 /* ── gap analysis, shared by read_state and the Day page ───────────────────── */
@@ -864,14 +992,29 @@ export function toolDefs({ webSearch = true } = {}) {
 
 export const isServerTool = (name) => name === "web_search";
 
-/** Run a client tool by name. Never throws — a thrown tool is a failed tool. */
+/** Tools that only look. The console badges these differently and never offers Undo. */
+export const isReadonlyTool = (name) => !!TOOLS[name]?.readonly;
+
+/**
+ * Run a client tool by name. Never throws — a thrown tool is a failed tool.
+ *
+ * Deliberately not declared `async`. Every local tool touches nothing but the
+ * store and returns its result there and then; only the Pentagon three cross a
+ * network. Wrapping the whole registry in a promise to accommodate three of
+ * them would make every caller — and every test — wait on a microtask for an
+ * answer it already has. So: a synchronous tool comes back synchronously, an
+ * async one comes back as a promise with the same failure shape, and callers
+ * that might get either simply `await` it.
+ */
 export function runTool(name, input) {
   const t = TOOLS[name];
   if (!t) return fail(`There is no tool called "${name}".`);
+  const blew = (e) => fail(`${name} threw: ${e?.message || e}`, "Don't retry it the same way.");
   try {
-    return t.run(input || {});
+    const out = t.run(input || {});
+    return out && typeof out.then === "function" ? out.then((r) => r, blew) : out;
   } catch (e) {
-    return fail(`${name} threw: ${e?.message || e}`, "Don't retry it the same way.");
+    return blew(e);
   }
 }
 

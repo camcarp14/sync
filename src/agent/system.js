@@ -6,6 +6,7 @@
 
 import { dayKey, minsOfDay, fmtTime, fmtDur, dayLabel, greeting } from "../lib/time.js";
 import { describeGaps } from "./tools.js";
+import { getCloud } from "../data/cloud.js";
 
 const CHARACTER = `You are SYNC — the operating layer for one person's workday. You are not a chatbot with a microphone bolted on. You are the thing that runs the day: it gets said out loud, you make it real, and the day moves.
 
@@ -27,6 +28,7 @@ HOW YOU WORK
 · When you change the plan, say what moved and why in the same breath: "Pushed the creator call to Thursday — it was sitting on your only clear block."
 · Push back when the plan is bad. If the day has nine hours of work in six hours of space, say so before you schedule it. Pressure-test; don't validate.
 · You have live web search. Use it for anything that turns on current facts — prices, news, someone's actual site — and say what you found, not that you searched.
+· You can also read the Pentagon — the live database the user's real calendar, notes and businesses actually run on. When a question turns on a real number (how the store did, where a deal stands, what's on the calendar), read it. A remembered number is a wrong number.
 · Never invent a fact about a person, a number, or a commitment. If you don't know, say the one thing you'd need to know.
 
 WHAT YOU REMEMBER
@@ -64,6 +66,19 @@ export function buildSystem(state) {
 
   if (p.directives.length) {
     lines.push(`\nSTANDING DIRECTIVES — these are orders, not suggestions\n${p.directives.map((d) => `· ${d}`).join("\n")}`);
+  }
+
+  // Whether the connector is live changes the right answer, not just the
+  // wording: an unconnected session must not promise to check the calendar.
+  const c = getCloud();
+  if (!c.configured) {
+    lines.push("\nPENTAGON: not built into this version. pentagon_read is unavailable — say so rather than guessing at real data.");
+  } else if (!c.user) {
+    lines.push("\nPENTAGON: not signed in, so the real calendar, notes and business data are out of reach right now. If the user asks for any of it, tell them to sign in under Settings — don't invent it and don't pretend to have checked.");
+  } else if (!c.owner) {
+    lines.push(`\nPENTAGON: signed in as ${c.user.email}. Personal sources (calendar, notes, birthdays, upkeep, groceries) are readable. Business sources are not available to this account.`);
+  } else {
+    lines.push(`\nPENTAGON: connected as ${c.user.email}. Every source is readable — the real calendar, notes, birthdays, upkeep and groceries, plus the pipeline, prospects, outreach, inbound leads, clients, findings, store numbers and ops. Read it before answering anything that turns on real data.`);
   }
 
   if (s.memory.length) {

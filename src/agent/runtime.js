@@ -12,7 +12,7 @@
 //   4. stop on end_turn, on the step ceiling, or on abort
 
 import { stream, estimateCost, TransportError, explain } from "./transport.js";
-import { toolDefs, runTool, toolVerb, isServerTool } from "./tools.js";
+import { toolDefs, runTool, toolVerb, isServerTool, isReadonlyTool } from "./tools.js";
 import { buildSystem } from "./system.js";
 import {
   getState, addTurn, patchTurn, setHistory, addUsage,
@@ -174,14 +174,17 @@ export async function runTurn({ text, onDelta, onSpeakable, onAct, signal }) {
         };
         pushAct(act);
 
-        const out = runTool(call.name, call.input);
+        const out = await runTool(call.name, call.input);
+        const readonly = isReadonlyTool(call.name);
 
         settleAct(act.id, {
           status: out.ok ? "ok" : "failed",
           title: out.summary,
           detail: out.detail || "",
-          ledgerId: out.ok ? getState().ledger[getState().ledger.length - 1]?.id : null,
-          readonly: !!(out.ok && call.name.startsWith("read_")) || call.name === "search_memory",
+          // A read files no ledger entry, so don't hand the console the id of
+          // whatever unrelated action happened to be last.
+          ledgerId: out.ok && !readonly ? getState().ledger[getState().ledger.length - 1]?.id : null,
+          readonly,
         });
 
         results.push({

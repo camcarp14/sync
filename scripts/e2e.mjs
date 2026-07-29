@@ -181,6 +181,36 @@ check("a rejected key is explained in plain words", /key was rejected/i.test(awa
 check("the failure carries a retry", (await page.locator(".act.failed .act-undo").count()) > 0);
 await page.screenshot({ path: join(SHOTS, "e2e-3-error.png") });
 
+/* ── the Pentagon panel, signed out ────────────────────────────────────────── */
+// The connector is optional by design, so the state that matters most is the one
+// where it isn't connected: the app has to be entirely usable, the panel has to
+// say so plainly, and a rejected sign-in has to come back as words rather than
+// a spinner that never stops.
+await page.route("**nrzpinvyxxorxufadvyc.supabase.co/**", (route) =>
+  route.fulfill({
+    status: 400,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ error: "invalid_grant", error_description: "Invalid login credentials" }),
+  }));
+
+await page.keyboard.press("Meta+Comma");
+await page.waitForTimeout(600);
+const pentagon = page.locator(".sec-head").filter({ hasText: "Pentagon" }).first();
+check("settings carries a Pentagon section", (await pentagon.count()) === 1);
+check("and reports it as not connected", /Not connected/i.test(await pentagon.innerText()));
+check("the copy says SYNC works without it", /works fully without it/i.test(await page.locator("section", { has: pentagon }).first().innerText()));
+
+await page.fill('input[placeholder="you@example.com"]', "cam.carp14@gmail.com");
+await page.fill('input[placeholder="Password"]', "not-the-password");
+await page.locator('button:has-text("Connect")').first().click();
+await page.waitForTimeout(1200);
+check("a rejected sign-in says so", (await page.locator(".toast.err").count()) > 0);
+check("and does not leave the panel stuck connecting", !/Connecting/i.test(await pentagon.innerText()));
+await page.screenshot({ path: join(SHOTS, "e2e-4-pentagon.png") });
+
+await page.keyboard.press("Escape");
+await page.waitForTimeout(400);
+
 check("nothing threw", errors.length === 0, errors.join(" | "));
 
 /* ── phone geometry, including an installed iOS app ────────────────────────── */

@@ -13,11 +13,13 @@
     "smoke:tools": "node scripts/tools-smoke.mjs",
     "smoke:stream": "node scripts/stream-smoke.mjs",
     "smoke:speech": "node scripts/speech-smoke.mjs",
+    "smoke:pentagon": "node scripts/pentagon-smoke.mjs",
     "e2e": "node scripts/e2e.mjs",
     "icons": "node scripts/make-icons.mjs",
-    "verify": "npm run smoke:time && npm run smoke:store && npm run smoke:tools && npm run smoke:stream && npm run smoke:speech && npm run build"
+    "verify": "npm run smoke:time && npm run smoke:store && npm run smoke:tools && npm run smoke:stream && npm run smoke:speech && npm run smoke:pentagon && npm run build"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.111.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

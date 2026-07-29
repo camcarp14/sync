@@ -149,7 +149,14 @@ export function set(patch) {
 // row in the console's ledger has a working Undo without anyone writing one.
 const UNDOABLE = new Set(["blocks", "tasks", "followups", "notes", "memory", "decisions", "drafts", "focus", "profile"]);
 
-export function commit({ action, title, detail, touches = [], apply, tone }) {
+// Some actions also created a row in the Pentagon. Those entries carry a
+// `remote` descriptor, and undoing them has to reach across the network too.
+// The handler is injected (from data/cloud.js) so this file keeps no dependency
+// on Supabase and still works with the network unplugged.
+let remoteUndoHandler = null;
+export function setRemoteUndoHandler(fn) { remoteUndoHandler = fn; }
+
+export function commit({ action, title, detail, touches = [], apply, tone, remote }) {
   const keys = touches.filter((k) => UNDOABLE.has(k));
   const before = {};
   for (const k of keys) before[k] = state[k];
@@ -164,6 +171,7 @@ export function commit({ action, title, detail, touches = [], apply, tone }) {
     tone: tone || null,
     at: Date.now(),
     undo: keys.length ? before : null,
+    remote: remote || null,
     undone: false,
   };
 
@@ -174,7 +182,14 @@ export function commit({ action, title, detail, touches = [], apply, tone }) {
 
 export function undo(entryId) {
   const entry = state.ledger.find((e) => e.id === entryId);
-  if (!entry || !entry.undo || entry.undone) return false;
+  if (!entry || entry.undone || (!entry.undo && !entry.remote)) return false;
+
+  // Fire the remote half first but never wait on it: the local undo is what the
+  // user sees, and a dead network must not block it.
+  if (entry.remote && remoteUndoHandler) {
+    try { Promise.resolve(remoteUndoHandler(entry.remote)).catch(() => {}); } catch { /* ignore */ }
+  }
+
   state = {
     ...state,
     ...entry.undo,

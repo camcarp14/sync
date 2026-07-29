@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useStore } from "../data/useStore.js";
+import { useStore, useCloud } from "../data/useStore.js";
 import {
   setSettings, setProfile, exportState, importState, resetAll, clearConversation, getState,
 } from "../data/store.js";
@@ -13,9 +13,11 @@ import { MODELS } from "../agent/transport.js";
 import { listVoices, onVoicesReady } from "../voice/speaker.js";
 import { fmt24, parseTime } from "../lib/time.js";
 import { viewportReport, useVisualViewport } from "./viewport.js";
+import PentagonPanel from "./PentagonPanel.jsx";
 
 export default function SettingsSheet({ onClose }) {
   const s = useStore();
+  const cloud = useCloud();
   const voice = useVoice();
   const toast = useToast();
   const [confirmEl, confirm] = useConfirm();
@@ -120,6 +122,9 @@ export default function SettingsSheet({ onClose }) {
               Anthropic. Leave it empty to route through a deployed <code style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>/.netlify/functions/claude</code> proxy instead.
             </div>
           </section>
+
+          {/* ── the Pentagon ────────────────────────────────────────── */}
+          <PentagonPanel />
 
           {/* ── the model ───────────────────────────────────────────── */}
           <section>
@@ -262,8 +267,9 @@ export default function SettingsSheet({ onClose }) {
             </CellGroup>
             <input ref={fileRef} type="file" accept="application/json,.json" onChange={doImport} style={{ display: "none" }} />
             <div className="t-foot" style={{ marginTop: 10 }}>
-              Everything SYNC knows lives in this browser and nowhere else. Clearing site data erases it, so export
-              before you do anything drastic.
+              {cloud.user
+                ? "This browser holds the original; the Pentagon holds a copy that follows you between devices. Clearing site data still erases what's here, so export before anything drastic."
+                : "Everything SYNC knows lives in this browser and nowhere else. Clearing site data erases it, so export before you do anything drastic."}
             </div>
           </section>
 

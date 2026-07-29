@@ -2,7 +2,7 @@
 
 **A voice-first operating layer for the workday.** You say what needs to happen; it happens. Not a chatbot with a microphone bolted on — the thing that actually books the block, moves the meeting, takes the note, and chases what's gone quiet.
 
-Everything it does lands in a ledger with an Undo next to it. Everything it knows lives in your browser and leaves only when you export it.
+Everything it does lands in a ledger with an Undo next to it. Everything it knows lives in your browser and leaves only when you export it — or when you connect it to [the Pentagon](#the-pentagon), which is off until you say otherwise.
 
 ```
 "Sync, book me two hours of deep work at two."
@@ -80,6 +80,7 @@ Undo restores that image. That's the whole mechanism — no hand-written inverse
 | **Focus** | `start_focus` · `end_focus` |
 | **You** | `update_profile` |
 | **Live** | `web_search` (server-side, toggleable) |
+| **Pentagon** | `pentagon_read` · `pentagon_add_event` · `pentagon_capture` |
 
 Two rules the whole tool layer obeys, because a wrong answer here becomes a wrong *day*:
 
@@ -115,21 +116,40 @@ All of it is gated behind `prefers-reduced-motion`.
 ## Verifying it
 
 ```bash
-npm run verify         # 327 checks + a production build
+npm run verify         # 396 checks + a production build
 npm run e2e            # the whole loop in a real browser, Anthropic stubbed
 ```
 
-`verify` covers the pieces where a bug is silent: timezone handling and the model's own argument parsing (`time`), undo and persistence (`store`), tool identity-resolution and collision refusal (`tools`), SSE reassembly across hostile chunk boundaries (`stream`), and speech chunking plus wake-word matching (`speech`).
+`verify` covers the pieces where a bug is silent: timezone handling and the model's own argument parsing (`time`), undo and persistence (`store`), tool identity-resolution and collision refusal (`tools`), SSE reassembly across hostile chunk boundaries (`stream`), speech chunking plus wake-word matching (`speech`), and the connector's contract (`pentagon`) — what leaves the device, that a signed-out call fails in words rather than a stack trace, and that remote undo dispatches.
 
 `e2e` runs the built bundle in Chromium with the Anthropic endpoint stubbed, and asserts the thing that actually matters: an utterance goes in, a tool runs, the day changes, the ledger entry undoes it cleanly, and a rejected key produces a sentence a person can act on rather than a dead end. It needs Playwright available (`npm i -g playwright`); nothing else in the app does.
 
+## The Pentagon
+
+Optional, and off until you sign in. The Pentagon is the shared Supabase project the rest of the estate runs on — Board Room, Clarify, ZTS, Runway. Connecting under **Settings → Pentagon** does two things:
+
+**Your SYNC state follows you.** The whole document goes into `sync.state` as one `jsonb` row, because the store is one plain object replaced immutably — sharding it into per-row tables would buy nothing but merge conflicts. The row carries a `rev`, and every push declares which revision it believed it was editing. A stale write is refused, not applied. When two devices genuinely diverge SYNC says so and offers the only two honest answers, because silently merging would resurrect things you deleted.
+
+**SYNC can read what's real.** `pentagon_read` reaches twelve sources: the actual calendar, notes, birthdays, upkeep and groceries; and the pipeline, prospects, outreach, inbound leads, clients, findings, store numbers and ops. `pentagon_add_event` and `pentagon_capture` write back — and because the ledger entry carries a `remote` descriptor, **Undo reaches across the network too** and deletes the row it created.
+
+### On the key, and why that's fine
+
+The Supabase key in `src/lib/supabase.js` is the *publishable* one. It ships in the bundle of every Supabase browser app and grants nothing by itself; RLS is the boundary. But "any signed-in account" is a real boundary in a project where anyone can hold that key, so the two tiers are treated differently:
+
+- **Personal tables** are keyed on `auth.uid()`. RLS alone scopes them correctly, so SYNC reads and writes them directly.
+- **Business tables** are org-wide, with `auth.role() = 'authenticated'` policies. SYNC refuses to lean on that. Every business read goes through `sync.pentagon()`, which checks `sync.is_owner()` first — an allowlist, plus a self-bootstrapping clause so whoever already owns Board Room rows can never be locked out. `p_source` selects a fixed branch; there is no dynamic SQL, so a model choosing that argument cannot compose a query of its own.
+
+Your Anthropic key is the one thing that never travels. It is stripped from the export and from the synced document, and `npm run smoke:pentagon` asserts both rather than trusting them.
+
+Schema changes live in `supabase/migrations/`. They only add — nothing any other app depends on was modified.
+
 ## Your data
 
-It's in `localStorage` under `sync.state.v1`, and nowhere else. There is no account and no server.
+It's in `localStorage` under `sync.state.v1`. With the Pentagon connected there's a second copy in `sync.state` on the server; without it, there is no account and no server.
 
 - **Export** writes one JSON file with your API key deliberately stripped out.
 - **Import** replaces everything and keeps the local key.
-- Clearing site data erases it. Export before you do anything drastic.
+- Clearing site data erases the local copy. Export before you do anything drastic.
 
 ---
 
