@@ -454,8 +454,11 @@ kbd {
    guillotined by it, so a scrolled conversation never shows a half-cut line */
 .stream {
   flex: 1; min-height: 0; overflow-y: auto; padding: 14px 0 20px;
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 26px);
-  mask-image: linear-gradient(to bottom, transparent 0, #000 26px);
+  /* Fades at both ends. Without the lower one a reply is guillotined
+     mid-sentence where the composer begins, which reads as a broken layout
+     rather than as something you can scroll. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 22px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 22px), transparent 100%);
 }
 .stream-inner { max-width: 760px; margin: 0 auto; padding: 0 20px; display: flex; flex-direction: column; gap: 14px; }
 .turn { display: flex; flex-direction: column; gap: 8px; animation: rise var(--dur-3) var(--ease-out) both; }
@@ -589,17 +592,49 @@ kbd {
 }
 
 /* ═══ ONBOARDING ═════════════════════════════════════════════════════════════ */
+/* A real scroll container: definite height from the frame, and `margin: auto`
+   on the card rather than flex centring. Centring a flex child taller than its
+   container clips the TOP of it and makes the start unscrollable — which is how
+   the Start button ended up unreachable on a phone. margin:auto centres when
+   there is room and yields when there isn't. */
 .entrance {
-  min-height: 100%; display: flex; align-items: center; justify-content: center;
-  padding: 24px 20px; overflow-y: auto;
+  height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column;
+  padding: calc(18px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));
 }
 .entrance-card {
+  margin: auto; flex: none;
   width: 480px; max-width: 100%; padding: 26px;
   background: var(--surface); border-radius: var(--r-card);
   box-shadow: var(--shadow-deep);
   animation: rise var(--dur-4) var(--ease-out) both;
   display: flex; flex-direction: column; gap: 16px;
 }
+@media (max-width: 760px) {
+  .entrance-card { padding: 20px; gap: 14px; border-radius: 20px; }
+  .entrance-card .t-title1 { font-size: 23px; }
+}
+
+/* Onboarding option rows. The tick aligns with the title, not with the middle
+   of a four-line description — which is most of what made this look jumbled. */
+.opt {
+  display: flex; align-items: flex-start; gap: 11px; width: 100%;
+  padding: 12px 13px; border-radius: 13px; border: none; cursor: pointer;
+  background: var(--surface-2); text-align: left; font-family: inherit;
+  transition: background var(--dur-1) ease;
+}
+.opt.on { background: var(--accent-a12); }
+.opt:active { transform: scale(0.99); }
+.opt-tick {
+  flex: none; width: 22px; height: 22px; border-radius: 7px; margin-top: 1px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--ink-a08); color: transparent;
+  transition: background var(--dur-1) ease, color var(--dur-1) ease;
+}
+.opt.on .opt-tick { background: var(--accent); color: var(--on-accent); }
+.opt-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.opt-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+.opt-sub { font-size: 12.5px; line-height: 1.45; color: var(--sub); }
 
 /* ═══ REDUCED MOTION — motion is optional to the user's nervous system ═══════ */
 @media (prefers-reduced-motion: reduce) {

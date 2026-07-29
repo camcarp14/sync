@@ -274,6 +274,46 @@ check("short viewport: the tab bar sits on the renderable bottom", short.dockBot
 check("short viewport: the frame never exceeds what can be drawn", short.dockBottomOnScreen <= short.vvh,
   `dock bottom ${short.dockBottomOnScreen} vs renderable ${short.vvh}`);
 
+// Onboarding must be completable on a phone. It was not: the entrance had no
+// definite height, so `body { overflow: hidden }` clipped anything past the
+// screen and the Start button could not be reached — which is why the
+// questions came back every launch. The answers were never saved because the
+// flow could never be finished.
+{
+  const c = await browser.newContext({
+    viewport: { width: 393, height: 759 }, screen: { width: 393, height: 852 },
+    deviceScaleFactor: 1, isMobile: true, hasTouch: true, colorScheme: "light",
+  });
+  const pg = await c.newPage();
+  await pg.addInitScript(() => { Object.defineProperty(navigator, "standalone", { value: true, configurable: true }); });
+  await pg.goto(URL, { waitUntil: "networkidle" });
+  await pg.waitForTimeout(2400);
+
+  await pg.fill('input[placeholder="Cameron"]', "Cameron");
+  await pg.getByRole("button", { name: "Continue" }).click();
+  await pg.waitForTimeout(400);
+  await pg.getByRole("button", { name: /Skip for now|Continue/ }).click();
+  await pg.waitForTimeout(500);
+
+  const start = pg.getByRole("button", { name: "Start" });
+  await start.scrollIntoViewIfNeeded();
+  const box = await start.boundingBox();
+  check("onboarding: the Start button can be reached on a phone",
+    !!box && box.y >= 0 && box.y + box.height <= 759, JSON.stringify(box));
+
+  await start.click();
+  await pg.waitForTimeout(1000);
+  const saved = await pg.evaluate(() => JSON.parse(localStorage.getItem("sync.state.v1") || "null"));
+  check("onboarding: finishing it persists", saved?.settings?.onboarded === true, String(saved?.settings?.onboarded));
+  check("onboarding: the answers persist", saved?.profile?.name === "Cameron" && saved?.profile?.ventures?.length > 0,
+    `${saved?.profile?.name} / ${saved?.profile?.ventures?.length} ventures`);
+
+  await pg.reload({ waitUntil: "networkidle" });
+  await pg.waitForTimeout(2400);
+  check("onboarding: it does not ask again after a reload", (await pg.locator(".entrance").count()) === 0);
+  await c.close();
+}
+
 const tab = await phoneGeometry(false);
 check("browser tab: nothing is reserved when there is no inset", tab.capH === tab.envTop, `cap ${tab.capH} vs inset ${tab.envTop}`);
 check("browser tab: no dead band above the toggles", tab.barTop <= 14, String(tab.barTop));

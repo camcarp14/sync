@@ -36,20 +36,14 @@ function useIsPhone() {
   return phone;
 }
 
-function Workspace() {
+function Workspace({ vvh }) {
   const [page, setPage] = useState("console");
   const [palette, setPalette] = useState(false);
   const [settings, setSettingsOpen] = useState(false);
   const voice = useVoice();
   const phone = useIsPhone();
   const holding = useRef(false);
-  const { vvh, envTop } = useVisualViewport();
 
-  // visualViewport is the only height this window can actually render — see
-  // shell/viewport.js. Everything else (100dvh, innerHeight, screen.height)
-  // reports the full screen while iOS clips below vvh.
-  const frameHeight = vvh == null ? "100%" : `${vvh}px`;
-  const letterboxed = isLetterboxed(vvh, envTop);
   // When the keyboard takes most of the window, hide the tab bar rather than
   // let it hover mid-screen.
   const keyboardOpen = vvh != null && window.screen?.height ? vvh < window.screen.height * 0.72 : false;
@@ -101,12 +95,7 @@ function Workspace() {
   }, [voice, palette, settings]);
 
   return (
-    // Height comes from visualViewport, inline, because it is a measurement
-    // rather than a style. Fixed and top-anchored: the window is the frame.
-    <div
-      className={`app${letterboxed ? " lbx" : ""}`}
-      style={{ position: "fixed", top: 0, left: 0, right: 0, height: frameHeight, overflow: "hidden" }}
-    >
+    <div className="app">
       {!phone && <Sidebar page={page} setPage={setPage} onSettings={() => setSettingsOpen(true)} onPalette={() => setPalette(true)} />}
 
       <main className="app-main">
@@ -144,9 +133,17 @@ export default function App() {
   const s = useStore();
   const [booted, setBooted] = useState(false);
   const [onboarded, setOnboarded] = useState(() => getState().settings.onboarded);
+  const { vvh, envTop } = useVisualViewport();
 
-  // The room follows the preference, and follows the OS while that preference
-  // is "auto".
+  // One frame for the whole app, onboarding included. Onboarding used to sit
+  // outside it on a container with `min-height: 100%` and no definite height —
+  // so it could not scroll, `body { overflow: hidden }` clipped whatever ran
+  // past the screen, and on a phone the Start button was simply unreachable.
+  // That is why the questions came back every launch: the answers were never
+  // saved because the flow could never be finished.
+  const frameHeight = vvh == null ? "100%" : `${vvh}px`;
+  const letterboxed = isLetterboxed(vvh, envTop);
+
   useEffect(() => { applyTheme(s.settings.theme); }, [s.settings.theme]);
   useEffect(() => watchSystemTheme(() => getState().settings.theme, () => {}), []);
 
@@ -154,9 +151,14 @@ export default function App() {
 
   return (
     <ToastHost>
-      {onboarded
-        ? <VoiceProvider><Workspace /></VoiceProvider>
-        : <Onboarding onDone={() => setOnboarded(true)} />}
+      <div
+        className={`frame${letterboxed ? " lbx" : ""}`}
+        style={{ position: "fixed", top: 0, left: 0, right: 0, height: frameHeight }}
+      >
+        {onboarded
+          ? <VoiceProvider><Workspace vvh={vvh} /></VoiceProvider>
+          : <div className="entrance"><Onboarding onDone={() => setOnboarded(true)} /></div>}
+      </div>
     </ToastHost>
   );
 }

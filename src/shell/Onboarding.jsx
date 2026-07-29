@@ -111,27 +111,19 @@ export default function Onboarding({ onDone }) {
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {STARTER_VENTURES.map((v) => (
                 <button
                   key={v.key}
-                  className="cell tappable"
+                  type="button"
+                  className={`opt${picked.has(v.key) ? " on" : ""}`}
                   onClick={() => toggle(setPicked, v.key)}
-                  style={{ borderRadius: 12, background: picked.has(v.key) ? "var(--accent-a10)" : "var(--surface-2)", minHeight: 52 }}
+                  aria-pressed={picked.has(v.key)}
                 >
-                  <span
-                    className="cell-leading"
-                    style={{
-                      background: picked.has(v.key) ? "var(--accent)" : "var(--ink-a08)",
-                      color: picked.has(v.key) ? "var(--on-accent)" : "transparent",
-                      width: 22, height: 22, borderRadius: 7,
-                    }}
-                  >
-                    <IcCheck size={14} />
-                  </span>
-                  <span className="cell-body">
-                    <span className="cell-title">{v.name}</span>
-                    <span className="cell-sub" style={{ whiteSpace: "normal" }}>{v.note}</span>
+                  <span className="opt-tick"><IcCheck size={14} /></span>
+                  <span className="opt-body">
+                    <span className="opt-title">{v.name}</span>
+                    <span className="opt-sub">{v.note}</span>
                   </span>
                 </button>
               ))}
@@ -144,26 +136,18 @@ export default function Onboarding({ onDone }) {
 
             <div>
               <div className="t-label" style={{ marginBottom: 6 }}>How it should behave</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {STARTER_DIRECTIVES.map((d) => (
                   <button
                     key={d}
-                    className="cell tappable"
+                    type="button"
+                    className={`opt${directives.has(d) ? " on" : ""}`}
                     onClick={() => toggle(setDirectives, d)}
-                    style={{ borderRadius: 12, background: directives.has(d) ? "var(--accent-a10)" : "var(--surface-2)", minHeight: 46 }}
+                    aria-pressed={directives.has(d)}
                   >
-                    <span
-                      className="cell-leading"
-                      style={{
-                        background: directives.has(d) ? "var(--accent)" : "var(--ink-a08)",
-                        color: directives.has(d) ? "var(--on-accent)" : "transparent",
-                        width: 22, height: 22, borderRadius: 7,
-                      }}
-                    >
-                      <IcCheck size={14} />
-                    </span>
-                    <span className="cell-body">
-                      <span className="cell-title" style={{ whiteSpace: "normal", fontSize: 14 }}>{d}</span>
+                    <span className="opt-tick"><IcCheck size={14} /></span>
+                    <span className="opt-body">
+                      <span className="opt-sub" style={{ color: "var(--ink)", fontSize: 13.5 }}>{d}</span>
                     </span>
                   </button>
                 ))}
